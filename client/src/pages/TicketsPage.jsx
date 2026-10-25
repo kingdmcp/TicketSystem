@@ -13,7 +13,10 @@ import {
   ShieldAlert,
   Search,
   BookOpen,
-  Filter
+  Filter,
+  Download,
+  Flame,
+  UserCheck
 } from 'lucide-react';
 
 export default function TicketsPage() {
@@ -22,6 +25,7 @@ export default function TicketsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterPriority, setFilterPriority] = useState('ALL');
+  const [presetFilter, setPresetFilter] = useState('ALL'); // 'ALL' | 'CRITICAL' | 'PRE_BREACH' | 'MY_TICKETS' | 'RESOLVED'
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -224,7 +228,42 @@ export default function TicketsPage() {
     return { text: 'P4-Low (Response: 8h, Resolution: 72h)', color: 'text-blue-400' };
   };
 
+  const exportTicketsToCSV = () => {
+    if (tickets.length === 0) {
+      alert('No tickets available to export.');
+      return;
+    }
+    const headers = ['Ticket Number', 'Title', 'Category', 'Priority', 'Status', 'Assigned To', 'Created By', 'Response Due', 'Resolution Due', 'Created At'];
+    const rows = filteredTickets.map(t => [
+      t.ticketNumber,
+      `"${(t.title || '').replace(/"/g, '""')}"`,
+      t.category,
+      t.priority,
+      t.status,
+      `"${t.assignedToName || 'Unassigned'}"`,
+      `"${t.createdByName || ''}"`,
+      t.responseDue || 'N/A',
+      t.resolutionDue || 'N/A',
+      t.createdAt ? new Date(t.createdAt).toLocaleString() : ''
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `ITSM_Tickets_Report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredTickets = tickets.filter((t) => {
+    // Preset Filters
+    if (presetFilter === 'CRITICAL' && t.priority !== 'P1-Critical') return false;
+    if (presetFilter === 'PRE_BREACH' && !t.slaResponseBreached && !t.slaResolutionBreached && !t.slaResolutionWarningSent) return false;
+    if (presetFilter === 'MY_TICKETS' && t.assignedTo !== currentUser.id && t.createdBy !== currentUser.id) return false;
+    if (presetFilter === 'RESOLVED' && t.status !== 'Resolved' && t.status !== 'Closed') return false;
+
+    // Standard dropdown filters
     if (filterStatus !== 'ALL' && t.status !== filterStatus) return false;
     if (filterPriority !== 'ALL' && t.priority !== filterPriority) return false;
     return true;
@@ -245,12 +284,81 @@ export default function TicketsPage() {
             Automated Routing Matrix • SLA Pre-Breach Monitoring • 4-Hour Closure Timeout & KB Sync
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportTicketsToCSV}
+            className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition"
+            title="Download CSV spreadsheet of current tickets"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Raise New Incident</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Filter Presets */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Presets:</span>
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition"
+          onClick={() => { setPresetFilter('ALL'); setFilterStatus('ALL'); setFilterPriority('ALL'); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            presetFilter === 'ALL'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/60'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Raise New Incident</span>
+          All Incidents ({tickets.length})
+        </button>
+        <button
+          onClick={() => setPresetFilter('CRITICAL')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            presetFilter === 'CRITICAL'
+              ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+              : 'bg-slate-800/80 text-rose-300 hover:text-white border border-rose-500/30'
+          }`}
+        >
+          <Flame className="w-3.5 h-3.5 text-rose-400" />
+          Critical P1 ({tickets.filter(t => t.priority === 'P1-Critical').length})
+        </button>
+        <button
+          onClick={() => setPresetFilter('PRE_BREACH')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            presetFilter === 'PRE_BREACH'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+              : 'bg-slate-800/80 text-amber-300 hover:text-white border border-amber-500/30'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          SLA Attention
+        </button>
+        <button
+          onClick={() => setPresetFilter('MY_TICKETS')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            presetFilter === 'MY_TICKETS'
+              ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+              : 'bg-slate-800/80 text-cyan-300 hover:text-white border border-cyan-500/30'
+          }`}
+        >
+          <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
+          Assigned to Me
+        </button>
+        <button
+          onClick={() => setPresetFilter('RESOLVED')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            presetFilter === 'RESOLVED'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+              : 'bg-slate-800/80 text-emerald-300 hover:text-white border border-emerald-500/30'
+          }`}
+        >
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+          Resolved & Closed
         </button>
       </div>
 

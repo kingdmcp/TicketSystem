@@ -13,7 +13,10 @@ import {
   HardDrive,
   Cpu,
   Trash2,
-  Edit2
+  Edit2,
+  Download,
+  Wifi,
+  Laptop
 } from 'lucide-react';
 
 export default function AssetsPage() {
@@ -118,6 +121,35 @@ export default function AssetsPage() {
     }
   };
 
+  const exportAssetsToCSV = () => {
+    if (assets.length === 0) {
+      alert('No assets available to export.');
+      return;
+    }
+    const headers = ['Asset Tag', 'Asset Name', 'Category', 'Status', 'IP Address', 'MAC Address', 'VLAN', 'Room', 'Rack', 'Cost (USD)', 'Created At'];
+    const rows = filteredAssets.map(a => [
+      a.assetTag,
+      `"${(a.name || '').replace(/"/g, '""')}"`,
+      a.category,
+      a.status,
+      a.ipAddress || 'DHCP',
+      a.macAddress || 'N/A',
+      a.vlan || '20',
+      `"${a.room || ''}"`,
+      `"${a.rack || ''}"`,
+      a.cost || 0,
+      a.createdAt ? new Date(a.createdAt).toLocaleString() : ''
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `CMDB_Assets_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredAssets = assets.filter((a) => {
     if (categoryFilter !== 'ALL' && a.category !== categoryFilter) return false;
     if (statusFilter !== 'ALL' && a.status !== statusFilter) return false;
@@ -149,12 +181,70 @@ export default function AssetsPage() {
             Central Configuration Management Database • Port Tracing, Spatial Racks & Lifecycle Tracking
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportAssetsToCSV}
+            className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition"
+            title="Download CSV spreadsheet of current hardware inventory"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export CMDB CSV</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register New CMDB Asset</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Category Chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Quick Presets:</span>
         <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition"
+          onClick={() => { setCategoryFilter('ALL'); setStatusFilter('ALL'); setSearchQuery(''); }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            categoryFilter === 'ALL'
+              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+              : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/60'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Register New CMDB Asset</span>
+          All Assets ({assets.length})
+        </button>
+        <button
+          onClick={() => setCategoryFilter('Server')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            categoryFilter === 'Server'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'bg-slate-800/80 text-indigo-300 hover:text-white border border-indigo-500/30'
+          }`}
+        >
+          <Server className="w-3.5 h-3.5 text-indigo-400" />
+          Servers ({assets.filter(a => a.category === 'Server').length})
+        </button>
+        <button
+          onClick={() => setCategoryFilter('Laptop')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            categoryFilter === 'Laptop'
+              ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
+              : 'bg-slate-800/80 text-cyan-300 hover:text-white border border-cyan-500/30'
+          }`}
+        >
+          <Laptop className="w-3.5 h-3.5 text-cyan-400" />
+          Laptops & Workstations
+        </button>
+        <button
+          onClick={() => setCategoryFilter('Switch')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+            categoryFilter === 'Switch'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+              : 'bg-slate-800/80 text-amber-300 hover:text-white border border-amber-500/30'
+          }`}
+        >
+          <Wifi className="w-3.5 h-3.5 text-amber-400" />
+          Switches & APs
         </button>
       </div>
 
